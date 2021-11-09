@@ -112,10 +112,28 @@ class SYMBOL_TYPES:
 heap = {}
 symbolNames = {"print":SYMBOL_TYPES.FUNCTION_NAME}
 expectedTokens = [[ENUM_TOKENS.IDENTIFIER, ENUM_TOKENS.LBRACE]]
+singleCommandTokensList = []
 def execute(index = 0):
     if index >= len(tokens):
         return
-    
+    openToken = tokens[index]
+    if expectedTokens.get(idnex) != None and not expectedTokens[index].__contains__(openToken.token):
+        # TODO: great error reporting
+        ERROR
+    # TODO: example print function
+    if len(singleCommandTokensList) == 0:
+        # TODO: decide if it assigns or calls a function
+        # TODO: consider not baking assignment into the parser
+    # TODO: generate variable assignments
+    # TODO: support expressions
+    # TODO: generate function calls
+    # TODO: accept multiple parameters
+    # TODO: type checking
+    # TODO: explicit type conversions
+    # TODO: generate structs
+    # TODO: support traits
+    # TODO: support generics
+    # TODO: append expected Tokens
 
 def main():
     args = sys.argv[1:]
