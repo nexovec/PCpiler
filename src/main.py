@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from os import lseek
 import os.path
 """
 Spyder Editor
@@ -26,14 +27,23 @@ class ENUM_TOKENS:
 
 tokens = []
 opList = ['=','+','-','*','/']
-def close_token(openToken):
-    tokens.append(openToken)
-    return None
-def is_whitespace(text, index):
+
+
+def error(msg):
+    print(msg, file=sys.stderr)
+    exit(-1)
+
+def isWhitespace(text, index):
     if text[index] == ' ' or text[index] == '\n' or text[index] == '\t':
         return True
     else:
         return False
+
+
+def closeToken(openToken):
+    tokens.append(openToken)
+    return None
+
 def openNewToken(char: str):
     openToken = None
     if char == '\n':
@@ -104,32 +114,109 @@ def tokenize(text, index = 0, openToken = None):
     elif tok == ts.RBRACE:
         openToken = None
     else:
-        assert(False,"Parsing error, character not expected")
+        print("Parsing error, character not expected")
+        exit(-1)
     return tokenize(text, index + 1, openToken)
 
-class SYMBOL_TYPES:
-    FUNCTION_NAME = 0
-heap = {}
-symbolNames = {"print":SYMBOL_TYPES.FUNCTION_NAME}
-expectedTokens = [[ENUM_TOKENS.IDENTIFIER, ENUM_TOKENS.LBRACE]]
-singleCommandTokensList = []
+
+def hasThisToken(index):
+    if index < len(tokens):
+        return True
+    else:
+        return False
+    
+def hasNextToken(index):
+    if index + 1 < len(tokens):
+        return True
+    else:
+        return False
+    
+def hasNextNTokens(index, n):
+    if index + n < len(tokens):
+        return True
+    else:
+        return False
+
+def isValueToken(index):
+    if tokens[index].token == ENUM_TOKENS.STR_LITERAL or tokens[index].token == ENUM_TOKENS.NUM_LITERAL or tokens[index].token == ENUM_TOKENS.IDENTIFIER:
+        return True
+    else:
+        return False
+
+
+class INSTRUCTION_BLOCK:
+    ASSIGN     = "ASSIGN"
+    ADD        = "ADD"
+    
+# NOTE: this parses the code into instructions.
+def parseBinaryOperator(operatorIndex, leftSideIndex, rightSideIndex):
+    error("Not yet implemented")
+    
+def parseUnaryOperator(operatorIndex, leftSideIndex):
+    error("Not yet implemented")
+
+def parseExpression(index):
+    if not hasThisToken(index):
+        # end of file
+        return None
+    if not isValueToken(index):
+        # end of competence
+        return None
+    rSide = tokens[index]
+    lSide = parseExpression(index+2)
+    if lSide == None:
+        parseUnaryOperator(tokens[index+1], rSide)
+    else:
+        parseBinaryOperator(tokens[index + 1], rSide, lSide)
+    
+
+def parseCodeBlock(index):
+    # TODO: register function names before their commands are added into the cache
+    error("Not yet implemented")
+
+def parseFunctionCall(index):
+    error("Not yet implemented")
+
+def parseLvalueCommand(index):
+    assert(hasThisToken(index))
+    assert(hasNextToken(index))
+    token = tokens[index]
+    assert(token.token == ENUM_TOKENS.IDENTIFIER, "Unexpected token type " + str(token.token) + ", IDENTFIER expected")
+    if tokens[index+1].token == ENUM_TOKENS.OPERATOR:
+        listOfExpressionTokens = parseExpression(index)
+        # TODO: cache listOfExpressionTokens
+    elif tokens[index+1].token == ENUM_TOKENS.LPAREN:
+        listOfExpressionTokens = parseFunctionCall(index)
+    else:
+        error("Unexpected token type "+str(tokens[index].token)+", expected IDENTIFIER or LPAREN")
+    
+def parseCommand(index):
+    # FIXME: needs to cache the parsed commands
+    assert(hasThisToken(index))
+    t = tokens[index].token
+    if t == ENUM_TOKENS.IDENTIFIER:
+        return parseLvalueCommand(index)
+    elif t == ENUM_TOKENS.LBRACE:
+        return parseCodeBlock(index)
+    else:
+        error("Parsing error on token")
+
+
 def execute(index = 0):
-    if index >= len(tokens):
-        return
+    assert(hasThisToken(index))
     openToken = tokens[index]
-    if expectedTokens.get(idnex) != None and not expectedTokens[index].__contains__(openToken.token):
-        # TODO: great error reporting
-        ERROR
+    parseCommand(index)
+    
     # TODO: example print function
-    if len(singleCommandTokensList) == 0:
-        # TODO: decide if it assigns or calls a function
-        # TODO: consider not baking assignment into the parser
+    # TODO: clear commandBuilderCache, singleCommandTokensList, maintain expectedTokens
+    # TODO: better error logging
     # TODO: generate variable assignments
     # TODO: support expressions
     # TODO: generate function calls
     # TODO: accept multiple parameters
     # TODO: type checking
     # TODO: explicit type conversions
+    # TODO: require
     # TODO: generate structs
     # TODO: support traits
     # TODO: support generics
