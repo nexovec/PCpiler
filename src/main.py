@@ -13,6 +13,8 @@ class Token:
         self.data = data or []
     def __str__(self):
         return self.token
+    def __repr__(self):
+        return self.token
 class ENUM_TOKENS:
     ENDLINE     = "ENDLINE"
     IDENTIFIER  = "IDENTIFIER"
@@ -24,6 +26,7 @@ class ENUM_TOKENS:
     LBRACE      = "LBRACE"
     RBRACE      = "RBRACE"
     OPERATOR    = "OPERATOR"
+    COMMA       = "COMMA"
 
 tokens = []
 opList = ['=','+','-','*','/']
@@ -64,6 +67,10 @@ def openNewToken(char: str):
         openToken = Token(ENUM_TOKENS.LBRACE)
     elif char == '}':
         openToken = Token(ENUM_TOKENS.RBRACE)
+    elif char == ',':
+        openToken = Token(ENUM_TOKENS.COMMA)
+    elif char == ':':
+        openToken = Token(ENUM_TOKENS.COLON)
     elif opList.__contains__(char):
         openToken = Token(ENUM_TOKENS.OPERATOR)
     return openToken
@@ -79,7 +86,7 @@ def tokenize(text, index = 0, openToken = None):
         else:
             tokens.append(openToken)
     tok  = openToken.token
-    ts = ENUM_TOKENS()
+    ts = ENUM_TOKENS
     if tok   == ts.ENDLINE:
         openToken = None
     elif tok == ts.COLON:
@@ -92,26 +99,20 @@ def tokenize(text, index = 0, openToken = None):
     elif tok == ts.STR_LITERAL:
         if char == '\"':
             if len(openToken.data)!=0:
-                openToken.data = openToken.data[1:]
                 openToken = None
-        openToken.data.append(char)
+        else:
+            openToken.data.append(char)
     elif tok == ts.NUM_LITERAL:
         if char.isdigit():
             openToken.data.append(char)
         else:
-            openToken = None
+            return tokenize(text, index, None)
     elif tok == ts.OPERATOR:
         if opList.__contains__(char):
             openToken.data.append(char)
         else:
             openToken = None
-    elif tok == ts.LPAREN:
-        openToken = None
-    elif tok == ts.RPAREN:
-        openToken = None
-    elif tok == ts.LBRACE:
-        openToken = None
-    elif tok == ts.RBRACE:
+    elif [ts.LBRACE, ts.RBRACE, ts.LPAREN, ts.RPAREN, ts.COMMA].__contains__(tok):
         openToken = None
     else:
         print("Parsing error, character not expected")
@@ -145,29 +146,54 @@ def isValueToken(index):
 
 
 class INSTRUCTION_BLOCK:
-    ASSIGN     = "ASSIGN"
     ADD        = "ADD"
+    MUL        = "MUL"
+    CALL        = "CALL"
+    
+def getPrecedingOperator(a, b):
+    assert(a.token == ENUM_TOKENS.OPERATOR)
+    assert(b.token == ENUM_TOKENS.OPERATOR)
+    adata = ''.join(a.data)
+    bdata = ''.join(b.data)
+    if a.data == '=' and b.data == '+':
+        return b
+    else:
+        return getPrecedingOperator(b,a)
     
 # NOTE: this parses the code into instructions.
-def parseBinaryOperator(operatorIndex, leftSideIndex, rightSideIndex):
-    error("Not yet implemented")
+def parseBinaryOperator(operatorIndex, parsed):
     
-def parseUnaryOperator(operatorIndex, leftSideIndex):
     error("Not yet implemented")
 
+def expressionTokensCopy(index, lastToken = None):
+    expectedTokenTypes = []
+    if index>=len(tokens):
+        return []
+    if lastToken == None:
+        expectedTokenTypes = [ENUM_TOKENS.IDENTIFIER]
+    elif [ENUM_TOKENS.STR_LITERAL, ENUM_TOKENS.NUM_LITERAL, ENUM_TOKENS.IDENTIFIER].__contains__(lastToken):
+        expectedTokenTypes = [ENUM_TOKENS.OPERATOR]
+        if tokens[index].token != ENUM_TOKENS.OPERATOR:
+            # end of expression
+            return []
+    elif lastToken == ENUM_TOKENS.OPERATOR:
+        expectedTokenTypes = [ENUM_TOKENS.STR_LITERAL, ENUM_TOKENS.NUM_LITERAL, ENUM_TOKENS.IDENTIFIER]
+    
+    token = tokens[index]
+    if not expectedTokenTypes.__contains__(token.token):
+        error("Unexpected token, expected " + ' '.join(expectedTokenTypes))
+    restOfExpression = expressionTokensCopy(index + 1, lastToken = token.token)
+    result = [token]
+    result.extend(restOfExpression)
+    return result
+    
+        
 def parseExpression(index):
-    if not hasThisToken(index):
-        # end of file
-        return None
-    if not isValueToken(index):
-        # end of competence
-        return None
-    rSide = tokens[index]
-    lSide = parseExpression(index+2)
-    if lSide == None:
-        parseUnaryOperator(tokens[index+1], rSide)
-    else:
-        parseBinaryOperator(tokens[index + 1], rSide, lSide)
+    assert(hasThisToken(index))
+    # NOTE: only binary operations are supported so far
+    tokensCopy = expressionTokensCopy(index)
+    print(tokensCopy)
+    # TODO:
     
 
 def parseCodeBlock(index):
@@ -181,14 +207,14 @@ def parseLvalueCommand(index):
     assert(hasThisToken(index))
     assert(hasNextToken(index))
     token = tokens[index]
-    assert(token.token == ENUM_TOKENS.IDENTIFIER, "Unexpected token type " + str(token.token) + ", IDENTFIER expected")
+    # assert(token.token == ENUM_TOKENS.IDENTIFIER, "Unexpected token type " + str(token.token) + ", IDENTFIER expected")
     if tokens[index+1].token == ENUM_TOKENS.OPERATOR:
         listOfExpressionTokens = parseExpression(index)
         # TODO: cache listOfExpressionTokens
     elif tokens[index+1].token == ENUM_TOKENS.LPAREN:
         listOfExpressionTokens = parseFunctionCall(index)
     else:
-        error("Unexpected token type "+str(tokens[index].token)+", expected IDENTIFIER or LPAREN")
+        error("Unexpected token type " + str(tokens[index].token) + ", expected IDENTIFIER or LPAREN")
     
 def parseCommand(index):
     # FIXME: needs to cache the parsed commands
@@ -202,7 +228,7 @@ def parseCommand(index):
         error("Parsing error on token")
 
 
-def execute(index = 0):
+def execute_tokens(index = 0):
     assert(hasThisToken(index))
     openToken = tokens[index]
     parseCommand(index)
@@ -235,9 +261,9 @@ def main():
         text = f.readlines()
     tokenize('\n'.join(text))
     for _, v in enumerate(tokens):
-        print(v)
+        print(v,v.data)
     print()
-    execute()
+    execute_tokens()
     pass
 if __name__ == "__main__":
     main()
