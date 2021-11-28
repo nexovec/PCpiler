@@ -7,6 +7,7 @@ Spyder Editor
 This is a temporary script file.
 """
 import sys
+import uuid
 class Token:
     def __init__(self, token, data = None):
         self.token = token
@@ -148,7 +149,7 @@ def isValueToken(index):
 class INSTRUCTION_BLOCK:
     ADD        = "ADD"
     MUL        = "MUL"
-    CALL        = "CALL"
+    CALL       = "CALL"
     
 def getPrecedingOperator(a, b):
     assert(a.token == ENUM_TOKENS.OPERATOR)
@@ -165,42 +166,35 @@ def parseBinaryOperator(operatorIndex, parsed):
     
     error("Not yet implemented")
 
-def expressionTokensCopy(index, lastToken = None):
-    expectedTokenTypes = []
-    if index>=len(tokens):
-        return []
-    if lastToken == None:
-        expectedTokenTypes = [ENUM_TOKENS.IDENTIFIER]
-    elif [ENUM_TOKENS.STR_LITERAL, ENUM_TOKENS.NUM_LITERAL, ENUM_TOKENS.IDENTIFIER].__contains__(lastToken):
-        expectedTokenTypes = [ENUM_TOKENS.OPERATOR]
-        if tokens[index].token != ENUM_TOKENS.OPERATOR:
-            # end of expression
-            return []
-    elif lastToken == ENUM_TOKENS.OPERATOR:
-        expectedTokenTypes = [ENUM_TOKENS.STR_LITERAL, ENUM_TOKENS.NUM_LITERAL, ENUM_TOKENS.IDENTIFIER]
-    
+def getExpressionMaxIndex(index):
+    allowedTokens = [ENUM_TOKENS.LPAREN, ENUM_TOKENS.RPAREN, ENUM_TOKENS.OPERATOR, ENUM_TOKENS.IDENTIFIER, ENUM_TOKENS.STR_LITERAL, ENUM_TOKENS.NUM_LITERAL]
     token = tokens[index]
-    if not expectedTokenTypes.__contains__(token.token):
-        error("Unexpected token, expected " + ' '.join(expectedTokenTypes))
-    restOfExpression = expressionTokensCopy(index + 1, lastToken = token.token)
-    result = [token]
-    result.extend(restOfExpression)
-    return result
-    
-        
+    while allowedTokens.__contains__(token.token):
+        index+=1
+        token = tokens[index]
+    if token.token != ENUM_TOKENS.ENDLINE:
+        # TODO: warning instead
+        error("Expression not ended by newline")
+    return index
+
+def chugOutTerm(expressionTokens):
+    error("Not yet implemented")
+
 def parseExpression(index):
     assert(hasThisToken(index))
-    # NOTE: only binary operations are supported so far
-    tokensCopy = expressionTokensCopy(index)
-    print(tokensCopy)
-    # TODO:
-    
+    maxIndex = getExpressionMaxIndex(index)
+    expressionTokens = tokens[index:maxIndex]
+    print(tokens[index:maxIndex])
+    # TODO: expand parentheses into prefixed commands
+    chuggedOutTerm = chugOutTerm(expressionTokens)
+    return maxIndex + 1
 
 def parseCodeBlock(index):
     # TODO: register function names before their commands are added into the cache
     error("Not yet implemented")
 
 def parseFunctionCall(index):
+    print("I am calling a function!")
     error("Not yet implemented")
 
 def parseLvalueCommand(index):
@@ -209,10 +203,10 @@ def parseLvalueCommand(index):
     token = tokens[index]
     # assert(token.token == ENUM_TOKENS.IDENTIFIER, "Unexpected token type " + str(token.token) + ", IDENTFIER expected")
     if tokens[index+1].token == ENUM_TOKENS.OPERATOR:
-        listOfExpressionTokens = parseExpression(index)
+        return parseExpression(index)
         # TODO: cache listOfExpressionTokens
     elif tokens[index+1].token == ENUM_TOKENS.LPAREN:
-        listOfExpressionTokens = parseFunctionCall(index)
+        return parseFunctionCall(index)
     else:
         error("Unexpected token type " + str(tokens[index].token) + ", expected IDENTIFIER or LPAREN")
     
@@ -226,7 +220,6 @@ def parseCommand(index):
         return parseCodeBlock(index)
     else:
         error("Parsing error on token")
-
 
 def execute_tokens(index = 0):
     assert(hasThisToken(index))
