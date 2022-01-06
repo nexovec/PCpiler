@@ -1,2 +1,0 @@
-myVar = 3 + 3
-print(myVar, 3)

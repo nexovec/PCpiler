@@ -1,0 +1,2 @@
+myVar = 3 + 3
+print(myVar + 1, 3 + 5)

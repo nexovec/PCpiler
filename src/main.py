@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from os import lseek
 import os.path
+import inspect
 """
 Spyder Editor
 
@@ -8,34 +9,52 @@ This is a temporary script file.
 """
 import sys
 import uuid
+
+
 class Token:
-    def __init__(self, token, data = None):
+
+    def __init__(self, token, data=None):
         self.token = token
         self.data = data or []
+
     def __str__(self):
         return self.token
+
     def __repr__(self):
         return self.token
+
+
 class ENUM_TOKENS:
-    ENDLINE     = "ENDLINE"
-    IDENTIFIER  = "IDENTIFIER"
+    ENDLINE = "ENDLINE"
+    IDENTIFIER = "IDENTIFIER"
     NUM_LITERAL = "NUM_LITERAL"
     STR_LITERAL = "STR_LITERAL"
-    COLON       = "COLON"
-    LPAREN      = "LPAREN"
-    RPAREN      = "RPAREN"
-    LBRACE      = "LBRACE"
-    RBRACE      = "RBRACE"
-    OPERATOR    = "OPERATOR"
-    COMMA       = "COMMA"
+    COLON = "COLON"
+    LPAREN = "LPAREN"
+    RPAREN = "RPAREN"
+    LBRACE = "LBRACE"
+    RBRACE = "RBRACE"
+    OPERATOR = "OPERATOR"
+    COMMA = "COMMA"
+
 
 tokens = []
-opList = ['=','+','-','*','/']
+opList = ['=', '+', '-', '*', '/']
 
 
-def error(msg):
-    print(msg, file=sys.stderr)
+def error(msg, level=1):
+    assert (level >= 1)
+    frame = inspect.currentframe()
+    outerframe = inspect.getouterframes(frame, 2)
+    print(msg + "\n" + str(outerframe[level][1]) + ":" +
+          str(outerframe[level][2]))
+    print("", flush=True)
     exit(-1)
+
+
+def errNYI():
+    error("Not yet implemented.", 2)
+
 
 def isWhitespace(text, index):
     if text[index] == ' ' or text[index] == '\n' or text[index] == '\t':
@@ -48,6 +67,7 @@ def closeToken(openToken):
     tokens.append(openToken)
     return None
 
+
 def openNewToken(char: str):
     openToken = None
     if char == '\n':
@@ -58,8 +78,10 @@ def openNewToken(char: str):
         openToken = Token(ENUM_TOKENS.IDENTIFIER)
     elif char.isdigit():
         openToken = Token(ENUM_TOKENS.NUM_LITERAL)
+        # TODO: make sure numbers are followed by whitespace
     elif char == '\"':
         openToken = Token(ENUM_TOKENS.STR_LITERAL)
+        # TODO: make sure string literals are followed by whitespace
     elif char == '(':
         openToken = Token(ENUM_TOKENS.LPAREN)
     elif char == ')':
@@ -76,7 +98,9 @@ def openNewToken(char: str):
         openToken = Token(ENUM_TOKENS.OPERATOR)
     return openToken
 
-def tokenize(text, index = 0, openToken = None):
+
+def tokenize(text, index=0, openToken=None):
+    # FIXME: repeating newlines when parsing
     if index == len(text):
         return
     char = text[index]
@@ -86,9 +110,9 @@ def tokenize(text, index = 0, openToken = None):
             return tokenize(text, index + 1, None)
         else:
             tokens.append(openToken)
-    tok  = openToken.token
+    tok = openToken.token
     ts = ENUM_TOKENS
-    if tok   == ts.ENDLINE:
+    if tok == ts.ENDLINE:
         openToken = None
     elif tok == ts.COLON:
         openToken = None
@@ -99,7 +123,7 @@ def tokenize(text, index = 0, openToken = None):
             return tokenize(text, index, None)
     elif tok == ts.STR_LITERAL:
         if char == '\"':
-            if len(openToken.data)!=0:
+            if openToken.data.__len__() != 0:
                 openToken = None
         else:
             openToken.data.append(char)
@@ -113,7 +137,8 @@ def tokenize(text, index = 0, openToken = None):
             openToken.data.append(char)
         else:
             openToken = None
-    elif [ts.LBRACE, ts.RBRACE, ts.LPAREN, ts.RPAREN, ts.COMMA].__contains__(tok):
+    elif [ts.LBRACE, ts.RBRACE, ts.LPAREN, ts.RPAREN,
+          ts.COMMA].__contains__(tok):
         openToken = None
     else:
         print("Parsing error, character not expected")
@@ -126,106 +151,95 @@ def hasThisToken(index):
         return True
     else:
         return False
-    
+
+
 def hasNextToken(index):
     if index + 1 < len(tokens):
         return True
     else:
         return False
-    
+
+
 def hasNextNTokens(index, n):
     if index + n < len(tokens):
         return True
     else:
         return False
 
+
 def isValueToken(index):
-    if tokens[index].token == ENUM_TOKENS.STR_LITERAL or tokens[index].token == ENUM_TOKENS.NUM_LITERAL or tokens[index].token == ENUM_TOKENS.IDENTIFIER:
+    if tokens[index].token == ENUM_TOKENS.STR_LITERAL or tokens[
+            index].token == ENUM_TOKENS.NUM_LITERAL or tokens[
+                index].token == ENUM_TOKENS.IDENTIFIER:
         return True
     else:
         return False
 
 
 class INSTRUCTION_BLOCK:
-    ADD        = "ADD"
-    MUL        = "MUL"
-    CALL       = "CALL"
-    
+    ADD = "ADD"
+    MUL = "MUL"
+    CALL = "CALL"
+
+
 def getPrecedingOperator(a, b):
-    assert(a.token == ENUM_TOKENS.OPERATOR)
-    assert(b.token == ENUM_TOKENS.OPERATOR)
+    # TODO: test
+    assert (a.token == ENUM_TOKENS.OPERATOR)
+    assert (b.token == ENUM_TOKENS.OPERATOR)
     adata = ''.join(a.data)
     bdata = ''.join(b.data)
-    if a.data == '=' and b.data == '+':
-        return b
+    precedence = ["++", "*", "+", "=", "=="]
+    if precedence.index(adata) > precedence.index(bdata):
+        return bdata
     else:
-        return getPrecedingOperator(b,a)
-    
-# NOTE: this parses the code into instructions.
-def parseBinaryOperator(operatorIndex, parsed):
-    
-    error("Not yet implemented")
+        return adata
 
-def getExpressionMaxIndex(index):
-    allowedTokens = [ENUM_TOKENS.LPAREN, ENUM_TOKENS.RPAREN, ENUM_TOKENS.OPERATOR, ENUM_TOKENS.IDENTIFIER, ENUM_TOKENS.STR_LITERAL, ENUM_TOKENS.NUM_LITERAL]
-    token = tokens[index]
-    while allowedTokens.__contains__(token.token):
-        index+=1
-        token = tokens[index]
-    if token.token != ENUM_TOKENS.ENDLINE:
-        # TODO: warning instead
-        error("Expression not ended by newline")
+
+def consumeFunctionCall(index):
+    if tokens[index + 1].token != ENUM_TOKENS.LPAREN:
+        return index
+    errNYI()
+
+
+def consumeVariableAssign(index):
+    tokObj = tokens[index + 1]
+    if tokObj.token != ENUM_TOKENS.OPERATOR or ''.join(tokObj.data) != "=":
+        return index
+    errNYI()
+
+
+def consumeVariableExpression(index):
+    # TODO: unary operators need to be supported
+    oldindex = index
+    index = consumeVariableAssign(index)
+    if oldindex == index:
+        error("This is meaningless code")
+
+
+def consumeEmptyExpression(index, isParenthesized):
+    if isParenthesized and tokens[index + 1].token == ENUM_TOKENS.ENDLINE:
+        return index + 1
     return index
 
-def chugOutTerm(expressionTokens):
-    error("Not yet implemented")
 
-def parseExpression(index):
-    assert(hasThisToken(index))
-    maxIndex = getExpressionMaxIndex(index)
-    expressionTokens = tokens[index:maxIndex]
-    print(tokens[index:maxIndex])
-    # TODO: expand parentheses into prefixed commands
-    chuggedOutTerm = chugOutTerm(expressionTokens)
-    return maxIndex + 1
-
-def parseCodeBlock(index):
-    # TODO: register function names before their commands are added into the cache
-    error("Not yet implemented")
-
-def parseFunctionCall(index):
-    print("I am calling a function!")
-    error("Not yet implemented")
-
-def parseLvalueCommand(index):
-    assert(hasThisToken(index))
-    assert(hasNextToken(index))
-    token = tokens[index]
-    # assert(token.token == ENUM_TOKENS.IDENTIFIER, "Unexpected token type " + str(token.token) + ", IDENTFIER expected")
-    if tokens[index+1].token == ENUM_TOKENS.OPERATOR:
-        return parseExpression(index)
-        # TODO: cache listOfExpressionTokens
-    elif tokens[index+1].token == ENUM_TOKENS.LPAREN:
-        return parseFunctionCall(index)
+def consumeExpression(index, isParenthesized=False):
+    tokenType = tokens[index].token
+    print("parsing token " + tokenType)
+    if tokenType == ENUM_TOKENS.LPAREN:
+        consumeExpression(index + 1, True)
+    elif tokenType == ENUM_TOKENS.IDENTIFIER:
+        # NOTE: These functions must return the index of the endline character(or right paren, if isParenthesized == True)
+        # TODO: These functions must return index if they're not supposed to parse
+        index = consumeFunctionCall(index)
+        index = consumeVariableExpression(index)
+        index = consumeEmptyExpression(index)
     else:
-        error("Unexpected token type " + str(tokens[index].token) + ", expected IDENTIFIER or LPAREN")
-    
-def parseCommand(index):
-    # FIXME: needs to cache the parsed commands
-    assert(hasThisToken(index))
-    t = tokens[index].token
-    if t == ENUM_TOKENS.IDENTIFIER:
-        return parseLvalueCommand(index)
-    elif t == ENUM_TOKENS.LBRACE:
-        return parseCodeBlock(index)
-    else:
-        error("Parsing error on token")
+        error("Unexpected token " + tokenType)
+    return consumeEmptyExpression(index + 1, isParenthesized)
 
-def execute_tokens(index = 0):
-    assert(hasThisToken(index))
-    openToken = tokens[index]
-    parseCommand(index)
-    
+
+def consumeTokens(i=0):
+    result = consumeExpression(i)
     # TODO: example print function
     # TODO: clear commandBuilderCache, singleCommandTokensList, maintain expectedTokens
     # TODO: better error logging
@@ -241,6 +255,7 @@ def execute_tokens(index = 0):
     # TODO: support generics
     # TODO: append expected Tokens
 
+
 def main():
     args = sys.argv[1:]
     if len(args) == 0:
@@ -253,10 +268,15 @@ def main():
     with open(os.path.abspath(filename)) as f:
         text = f.readlines()
     tokenize('\n'.join(text))
+    if tokens[tokens.__len__() - 1].token != ENUM_TOKENS.ENDLINE:
+        tokens.append(Token(ENUM_TOKENS.ENDLINE))
     for _, v in enumerate(tokens):
-        print(v,v.data)
+        print(v, v.data)
     print()
-    execute_tokens()
+    consumeTokens()
+    print("hello", flush=True)
     pass
+
+
 if __name__ == "__main__":
     main()
