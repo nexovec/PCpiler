@@ -10,12 +10,19 @@ This is a temporary script file.
 import sys
 import uuid
 
+lastEndlIndex = 0
+currentRow = 1
+filename: str = None
+
 
 class Token:
+    index = 0
 
     def __init__(self, token, data=None):
-        self.token = token
+        self.token: ENUM_TOKENS = token
         self.data = data or []
+        self.row = currentRow
+        self.col = Token.index - lastEndlIndex + 1
 
     def __str__(self):
         return self.token
@@ -101,10 +108,11 @@ def openNewToken(char: str):
 
 def tokenize(text, index=0, openToken=None):
     # FIXME: repeating newlines when parsing
-    if index == len(text):
+    if index >= len(text):
         return
     char = text[index]
     if openToken == None:
+        Token.index = index
         openToken = openNewToken(char)
         if openToken == None:
             return tokenize(text, index + 1, None)
@@ -113,7 +121,10 @@ def tokenize(text, index=0, openToken=None):
     tok = openToken.token
     ts = ENUM_TOKENS
     if tok == ts.ENDLINE:
-        openToken = None
+        global currentRow
+        currentRow += 1
+        lastEndlIndex = index
+        return tokenize(text, index + 2, None)
     elif tok == ts.COLON:
         openToken = None
     elif tok == ts.IDENTIFIER:
@@ -182,6 +193,40 @@ class INSTRUCTION_BLOCK:
     CALL = "CALL"
 
 
+class BytecodeParser:
+    __slots__ = ('index', 'bytecode', 'identifiers')
+
+    def __init__(self):
+        self.index = 0
+        self.bytecode = []
+        self.identifiers = []
+
+    def nextToken(self):
+        self.index += 1
+        return self
+
+    def prevToken(self):
+        self.index -= 1
+        return self
+
+    def getTokenType(self):
+        return tokens[self.index].token
+
+    def getTokenData(self):
+        return ''.join(tokens[self.index].data)
+
+    def hasNext(self):
+        if len(tokens) >= self.index: return False
+        return True
+
+    def unexpectedTokenError(self):
+        # TODO: print line number
+        error(
+            "Unexpected token " + str(self.getTokenType()) + " at " +
+            filename + ":" + str(tokens[self.index].row) + ":" +
+            str(tokens[self.index].col), 2)
+
+
 def getPrecedingOperator(a, b):
     # TODO: test
     assert (a.token == ENUM_TOKENS.OPERATOR)
@@ -195,51 +240,78 @@ def getPrecedingOperator(a, b):
         return adata
 
 
-def consumeFunctionCall(index):
-    if tokens[index + 1].token != ENUM_TOKENS.LPAREN:
-        return index
-    errNYI()
+def consumeNumLiteral(bp: BytecodeParser):
+    if bp.getTokenType() != ENUM_TOKENS.NUM_LITERAL:
+        return bp, None, False
+    data = bp.getTokenData()
+    return bp.nextToken(), data, True
 
 
-def consumeVariableAssign(index):
-    tokObj = tokens[index + 1]
+def consumeArgsList(bp: BytecodeParser):
+    # NOTE: must return bp.index of the next ',' or of ')'
+
+    if not [ENUM_TOKENS.LPAREN, ENUM_TOKENS.COMMA].__contains__(bp.getTokenType()):
+        if bp.getTokenType() == ENUM_TOKENS.RPAREN:
+            return bp.nextToken()
+        bp.unexpectedTokenError()
+    print("Hello")
+    bp, literal, success = consumeNumLiteral(bp.nextToken())
+    if success:
+        consumeArgsList(bp)
+    # TODO: consider replacing all string literals with an identifier
+    # TODO: consumeStringLiteral, consumeIdentifierArg
+    return
+
+
+def consumeFunctionCall(bp: BytecodeParser):
+    if tokens[bp.index + 1].token != ENUM_TOKENS.LPAREN:
+        return bp
+    args = consumeArgsList(bp.nextToken())
+    return bp
+
+
+def consumeVariableAssign(bp: BytecodeParser):
+    tokObj = tokens[bp.index + 1]
     if tokObj.token != ENUM_TOKENS.OPERATOR or ''.join(tokObj.data) != "=":
-        return index
+        return bp
     errNYI()
 
 
-def consumeVariableExpression(index):
+def consumeVariableExpression(bp: BytecodeParser):
     # TODO: unary operators need to be supported
-    oldindex = index
-    index = consumeVariableAssign(index)
-    if oldindex == index:
+    oldindex = bp.index
+    bp = consumeVariableAssign(bp)
+    if oldindex == bp.index:
         error("This is meaningless code")
+    return bp
 
 
-def consumeEmptyExpression(index, isParenthesized):
-    if isParenthesized and tokens[index + 1].token == ENUM_TOKENS.ENDLINE:
-        return index + 1
-    return index
+def consumeEmptyExpression(bp: BytecodeParser, isParenthesized):
+    if not isParenthesized and tokens[bp.index + 1].token == ENUM_TOKENS.ENDLINE:
+        return bp.nextToken()
+    return bp
 
 
-def consumeExpression(index, isParenthesized=False):
-    tokenType = tokens[index].token
+def consumeExpression(bp: BytecodeParser, isParenthesized=False):
+    tokenType = tokens[bp.index].token
     print("parsing token " + tokenType)
+    if not bp.hasNext():
+        return bp
     if tokenType == ENUM_TOKENS.LPAREN:
-        consumeExpression(index + 1, True)
+        consumeExpression(bp.nextToken(), True)
     elif tokenType == ENUM_TOKENS.IDENTIFIER:
         # NOTE: These functions must return the index of the endline character(or right paren, if isParenthesized == True)
-        # TODO: These functions must return index if they're not supposed to parse
-        index = consumeFunctionCall(index)
-        index = consumeVariableExpression(index)
-        index = consumeEmptyExpression(index)
+        # NOTE: These functions must return index back if they're not supposed to parse
+        bp = consumeFunctionCall(bp)
+        bp = consumeVariableExpression(bp)
+        bp = consumeEmptyExpression(bp)
     else:
-        error("Unexpected token " + tokenType)
-    return consumeEmptyExpression(index + 1, isParenthesized)
+        bp.unexpectedTokenError()
+    return consumeEmptyExpression(bp.nextToken(), isParenthesized)
 
 
 def consumeTokens(i=0):
-    result = consumeExpression(i)
+    result = consumeExpression(BytecodeParser())
     # TODO: example print function
     # TODO: clear commandBuilderCache, singleCommandTokensList, maintain expectedTokens
     # TODO: better error logging
@@ -261,6 +333,7 @@ def main():
     if len(args) == 0:
         print("usage: python temp.py <filename>")
         return -1
+    global filename
     filename = args.pop()
     print("Parsing " + filename)
 
