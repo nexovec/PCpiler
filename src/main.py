@@ -2,11 +2,6 @@
 from os import lseek
 import os.path
 import inspect
-"""
-Spyder Editor
-
-This is a temporary script file.
-"""
 import sys
 import uuid
 
@@ -187,10 +182,12 @@ def isValueToken(index):
         return False
 
 
-class INSTRUCTION_BLOCK:
-    ADD = "ADD"
-    MUL = "MUL"
-    CALL = "CALL"
+BYTECODE_INSTRUCTIONS = {
+    "ADD": 0,
+    "MUL": 1,
+    "CALL": 2,
+    "STACK": 3
+}
 
 
 class BytecodeParser:
@@ -209,6 +206,9 @@ class BytecodeParser:
         self.index -= 1
         return self
 
+    def peekToken(self, offset: int = 1):
+        return tokens[self.index + offset]
+
     def getTokenType(self):
         return tokens[self.index].token
 
@@ -216,8 +216,8 @@ class BytecodeParser:
         return ''.join(tokens[self.index].data)
 
     def hasNext(self):
-        if len(tokens) >= self.index: return False
-        return True
+        if len(tokens) > self.index: return True
+        return False
 
     def unexpectedTokenError(self):
         # TODO: print line number
@@ -249,69 +249,104 @@ def consumeNumLiteral(bp: BytecodeParser):
 
 def consumeArgsList(bp: BytecodeParser):
     # NOTE: must return bp.index of the next ',' or of ')'
-
     if not [ENUM_TOKENS.LPAREN, ENUM_TOKENS.COMMA].__contains__(bp.getTokenType()):
         if bp.getTokenType() == ENUM_TOKENS.RPAREN:
-            return bp.nextToken()
+            bp.nextToken()
+            return True
         bp.unexpectedTokenError()
-    print("Hello")
-    bp, literal, success = consumeNumLiteral(bp.nextToken())
-    if success:
-        consumeArgsList(bp)
+    print("parsing an argument.")
+    if consumeRValue(bp.nextToken()) == False:
+        error("Expected RValue!")
+    consumeArgsList(bp)
+    # consumeArgsList(bp)
+    # bp, literal, success = consumeNumLiteral(bp.nextToken())
+    # if success:
+    #     consumeArgsList(bp)
     # TODO: consider replacing all string literals with an identifier
     # TODO: consumeStringLiteral, consumeIdentifierArg
-    return
+    return True
 
 
 def consumeFunctionCall(bp: BytecodeParser):
     if tokens[bp.index + 1].token != ENUM_TOKENS.LPAREN:
-        return bp
+        return False
+    print("parsing a function!")
     args = consumeArgsList(bp.nextToken())
-    return bp
+
+    # TODO: add bytecode instruction here
+
+    return True
 
 
 def consumeVariableAssign(bp: BytecodeParser):
-    tokObj = tokens[bp.index + 1]
-    if tokObj.token != ENUM_TOKENS.OPERATOR or ''.join(tokObj.data) != "=":
-        return bp
+    tok = bp.peekToken()
+    if tok.token != ENUM_TOKENS.OPERATOR or ''.join(tok.data) != "=":
+        return False
     errNYI()
 
-
-def consumeVariableExpression(bp: BytecodeParser):
-    # TODO: unary operators need to be supported
-    oldindex = bp.index
-    bp = consumeVariableAssign(bp)
-    if oldindex == bp.index:
-        error("This is meaningless code")
-    return bp
-
-
-def consumeEmptyExpression(bp: BytecodeParser, isParenthesized):
-    if not isParenthesized and tokens[bp.index + 1].token == ENUM_TOKENS.ENDLINE:
-        return bp.nextToken()
-    return bp
+def consumeEmptyCodeLine(bp: BytecodeParser, isParenthesized: bool = False):
+    if bp.hasNext() == False:
+        return False
+    if not isParenthesized and bp.getTokenType() == ENUM_TOKENS.ENDLINE:
+        bp.nextToken()
+        return True
+    return False
 
 
-def consumeExpression(bp: BytecodeParser, isParenthesized=False):
-    tokenType = tokens[bp.index].token
-    print("parsing token " + tokenType)
-    if not bp.hasNext():
-        return bp
+def consumeRValue(bp: BytecodeParser, isParenthesized: bool = False, ):
+    tokenType = bp.getTokenType()
+    success = False
     if tokenType == ENUM_TOKENS.LPAREN:
-        consumeExpression(bp.nextToken(), True)
-    elif tokenType == ENUM_TOKENS.IDENTIFIER:
-        # NOTE: These functions must return the index of the endline character(or right paren, if isParenthesized == True)
-        # NOTE: These functions must return index back if they're not supposed to parse
-        bp = consumeFunctionCall(bp)
-        bp = consumeVariableExpression(bp)
-        bp = consumeEmptyExpression(bp)
-    else:
+        if not consumeRValue(bp.nextToken(), True):
+            bp.unexpectedTokenError()
+    if tokenType == ENUM_TOKENS.RPAREN:
+        if not isParenthesized:
+            bp.unexpectedTokenError()
+        bp.nextToken()
+        return True
+    # if consumeVariableAssign(bp):
+    #     return True
+    if consumeFunctionCall(bp) == True:
+        return True
+    if bp.getTokenType() == ENUM_TOKENS.NUM_LITERAL:
+        print("Encountered number literal in rvlaue, great job!")
+        bp.nextToken()
+        return True
+    # TODO:
+    return False
+
+def consumeLValue(bp: BytecodeParser, isParenthesized=False):
+    tokenType = bp.getTokenType()
+    if not bp.hasNext():
+        return True
+    print("consuming LValue " + str(tokenType) + "!")
+    # NOTE: These functions must return with index of the endline character(or right paren, if isParenthesized == True)
+    # NOTE: These functions must return with index back if they're not supposed to parse.
+    if consumeFunctionCall(bp):
+        return True
+    # consumeVariableAssign(bp)
+
+    if not [ENUM_TOKENS.IDENTIFIER].__contains__(tokenType):
         bp.unexpectedTokenError()
-    return consumeEmptyExpression(bp.nextToken(), isParenthesized)
+    return False
 
 
-def consumeTokens(i=0):
-    result = consumeExpression(BytecodeParser())
+# Returns whether it encountered some errors
+def consumeModule(bp: BytecodeParser):
+    print("parsing a module!")
+    success = True
+    # while success == True:
+    #     success = consumeEmptyCodeLine(bp)
+    #     if success:
+    #         print("trimmed empty line!")
+    result = consumeLValue(bp)
+    if result == False:
+        error("Module xx has not parsed successfully!")
+    if bp.hasNext():
+        # FIXME: gets called at the end of file and throws :( fix pls
+        consumeModule(bp.nextToken())
+    # if bp.hasNext():
+    #     consumeModule(bp.nextToken())
     # TODO: example print function
     # TODO: clear commandBuilderCache, singleCommandTokensList, maintain expectedTokens
     # TODO: better error logging
@@ -346,8 +381,9 @@ def main():
     for _, v in enumerate(tokens):
         print(v, v.data)
     print()
-    consumeTokens()
-    print("hello", flush=True)
+    bp: BytecodeParser = BytecodeParser()
+    consumeModule(bp)
+    print("successfully parsed " + filename, flush=True)
     pass
 
 
