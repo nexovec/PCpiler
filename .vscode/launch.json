@@ -9,7 +9,7 @@
             "type": "python",
             "request": "launch",
             "program": "${file}",
-            "args": ["./scripts/script1.lang"],
+            "args": ["./scripts"],
             "console": "integratedTerminal"
         }
     ]

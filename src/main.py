@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from os import lseek
-import os.path
+import os
 import inspect
 import sys
 import uuid
@@ -260,14 +260,7 @@ def consumeArgsList(bp: BytecodeParser, argsList = None):
         bp.unexpectedTokenError()
     if consumeRValue(bp.nextToken()) == False:
         error("Expected RValue!")
-    print("parsed an argument.")
     consumeArgsList(bp)
-    # consumeArgsList(bp)
-    # bp, literal, success = consumeNumLiteral(bp.nextToken())
-    # if success:
-    #     consumeArgsList(bp)
-    # TODO: consider replacing all string literals with an identifier
-    # TODO: consumeStringLiteral, consumeIdentifierArg
     return True
 
 
@@ -285,15 +278,16 @@ inbuiltFunctions = {
 def consumeFunctionCall(bp: BytecodeParser):
     if bp.getTokenType() != ENUM_TOKENS.IDENTIFIER or tokens[bp.index + 1].token != ENUM_TOKENS.LPAREN:
         return False
-    print("parsing a function!")
     functionName = ''.join(bp.getTokenData())
     print("running function " + functionName)
-    # TODO: add bytecode instruction here
+    # TODO: Add bytecode instruction here
     if functionName in inbuiltFunctions:
         stack.append([])
         args = consumeArgsList(bp.nextToken())
         inbuiltFunctions.get(functionName)()
         stack.pop()
+    else:
+        error("This function doesn't exist yet!")
 
 
     return True
@@ -330,23 +324,25 @@ def consumeRValue(bp: BytecodeParser, isParenthesized: bool = False, ):
     if consumeFunctionCall(bp) == True:
         return True
     if bp.getTokenType() == ENUM_TOKENS.NUM_LITERAL:
-        print("Encountered number literal in rvlaue, great job!")
+        # print("Encountered number literal in rvlaue, great job!")
         stack[-1].append(bp.getTokenData())
         bp.nextToken()
         return True
-    # TODO:
+    # TODO: String literals
+    # TODO: Consider replacing all literals with an identifier
     return False
 
 def consumeLValue(bp: BytecodeParser):
     tokenType = bp.getTokenType()
     if not bp.hasNext():
         return True
-    print("consuming LValue " + str(tokenType) + "!")
+    # print("consuming LValue " + str(tokenType) + "!")
     # NOTE: These functions must return with index of the endline character(or right paren, if isParenthesized == True)
     # NOTE: These functions must return with index back if they're not supposed to parse.
     if consumeFunctionCall(bp):
         return True
-    # consumeVariableAssign(bp)
+    if consumeVariableAssign(bp):
+        return True
 
     if not [ENUM_TOKENS.IDENTIFIER].__contains__(tokenType):
         bp.unexpectedTokenError()
@@ -354,24 +350,13 @@ def consumeLValue(bp: BytecodeParser):
 
 
 # Returns whether it encountered some errors
-def consumeModule(bp: BytecodeParser):
-    print("parsing a module!")
-    success = True
-    # while success == True:
-    #     success = consumeEmptyCodeLine(bp)
-    #     if success:
-    #         print("trimmed empty line!")
-    result = consumeLValue(bp)
-    if result == False:
-        error("Module xx has not parsed successfully!")
-    if bp.hasNext():
-        # FIXME: gets called at the end of file and throws :( fix pls
-        consumeModule(bp.nextToken())
-    # if bp.hasNext():
-    #     consumeModule(bp.nextToken())
-    # TODO: example print function
-    # TODO: clear commandBuilderCache, singleCommandTokensList, maintain expectedTokens
-    # TODO: better error logging
+def consumeModule(bp: BytecodeParser, fileName):
+    bp.prevToken()
+    while bp.hasNext():
+        bp.nextToken()
+        if not consumeLValue(bp):
+            error("File " + fileName + "has not parsed successfully!")
+    # TODO: better error logging - show expected tokens
     # TODO: generate variable assignments
     # TODO: support expressions
     # TODO: generate function calls
@@ -384,29 +369,43 @@ def consumeModule(bp: BytecodeParser):
     # TODO: support generics
     # TODO: append expected Tokens
 
-
-def main():
-    args = sys.argv[1:]
-    if len(args) == 0:
-        print("usage: python temp.py <filename>")
-        return -1
-    global filename
-    filename = args.pop()
-    print("Parsing " + filename)
-
+def parseFile(fileName):
     text = None
-    with open(os.path.abspath(filename)) as f:
+    with open(os.path.abspath(fileName)) as f:
         text = f.readlines()
     tokenize('\n'.join(text))
     if tokens[tokens.__len__() - 1].token != ENUM_TOKENS.ENDLINE:
         tokens.append(Token(ENUM_TOKENS.ENDLINE))
     for _, v in enumerate(tokens):
         print(v, v.data)
-    print()
     bp: BytecodeParser = BytecodeParser()
-    consumeModule(bp)
-    print("successfully parsed " + filename, flush=True)
-    pass
+    consumeModule(bp, fileName)
+    print("Successfully parsed " + fileName, flush=True)
+
+
+def parseFilesAndDirectories(args, prefix = ""):
+    for arg in args:
+        fileOrDirName = prefix + arg
+        if os.path.exists(fileOrDirName) == False:
+            print(fileOrDirName)
+            error("Invalid file path")
+        if os.path.isdir(fileOrDirName):
+            fileOrDirName += "/"
+            print("Parsing a directory " + fileOrDirName)
+            parseFilesAndDirectories(os.listdir(fileOrDirName), fileOrDirName)
+        else:
+            print("Trying to parse a file " + arg)
+            parseFile(fileOrDirName)
+
+
+def main():
+    args = sys.argv[1:]
+    if len(args) == 0:
+        print("Usage: python temp.py <filename>")
+        return -1
+    parseFilesAndDirectories(args)
+    print()
+
 
 
 if __name__ == "__main__":
