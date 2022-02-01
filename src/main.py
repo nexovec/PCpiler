@@ -216,7 +216,8 @@ class BytecodeParser:
         return ''.join(tokens[self.index].data)
 
     def hasNext(self):
-        if len(tokens) > self.index: return True
+        if len(tokens) > self.index + 1:
+            return True
         return False
 
     def unexpectedTokenError(self):
@@ -315,7 +316,7 @@ def consumeRValue(bp: BytecodeParser, isParenthesized: bool = False, ):
     # TODO:
     return False
 
-def consumeLValue(bp: BytecodeParser, isParenthesized=False):
+def consumeLValue(bp: BytecodeParser):
     tokenType = bp.getTokenType()
     if not bp.hasNext():
         return True
