@@ -248,16 +248,19 @@ def consumeNumLiteral(bp: BytecodeParser):
     return bp.nextToken(), data, True
 
 
-def consumeArgsList(bp: BytecodeParser):
+def consumeArgsList(bp: BytecodeParser, argsList = None):
     # NOTE: must return bp.index of the next ',' or of ')'
+    if argsList == None:
+        # this means this is the first argument
+        argsList = []
     if not [ENUM_TOKENS.LPAREN, ENUM_TOKENS.COMMA].__contains__(bp.getTokenType()):
         if bp.getTokenType() == ENUM_TOKENS.RPAREN:
             bp.nextToken()
             return True
         bp.unexpectedTokenError()
-    print("parsing an argument.")
     if consumeRValue(bp.nextToken()) == False:
         error("Expected RValue!")
+    print("parsed an argument.")
     consumeArgsList(bp)
     # consumeArgsList(bp)
     # bp, literal, success = consumeNumLiteral(bp.nextToken())
@@ -268,13 +271,30 @@ def consumeArgsList(bp: BytecodeParser):
     return True
 
 
+stack = []
+def inbuilt_print():
+    params = stack[-1]
+    def func(v):
+        return str(v)
+    print(''.join(map(func, params)))
+
+inbuiltFunctions = {
+    "print": inbuilt_print
+}
+
 def consumeFunctionCall(bp: BytecodeParser):
-    if tokens[bp.index + 1].token != ENUM_TOKENS.LPAREN:
+    if bp.getTokenType() != ENUM_TOKENS.IDENTIFIER or tokens[bp.index + 1].token != ENUM_TOKENS.LPAREN:
         return False
     print("parsing a function!")
-    args = consumeArgsList(bp.nextToken())
-
+    functionName = ''.join(bp.getTokenData())
+    print("running function " + functionName)
     # TODO: add bytecode instruction here
+    if functionName in inbuiltFunctions:
+        stack.append([])
+        args = consumeArgsList(bp.nextToken())
+        inbuiltFunctions.get(functionName)()
+        stack.pop()
+
 
     return True
 
@@ -311,6 +331,7 @@ def consumeRValue(bp: BytecodeParser, isParenthesized: bool = False, ):
         return True
     if bp.getTokenType() == ENUM_TOKENS.NUM_LITERAL:
         print("Encountered number literal in rvlaue, great job!")
+        stack[-1].append(bp.getTokenData())
         bp.nextToken()
         return True
     # TODO:
