@@ -10,6 +10,25 @@ currentRow = 1
 filename: str = None
 
 
+opList = ['=', '+', '-', '*', '/']
+
+
+tokens = []
+stack = []
+
+
+def inbuilt_print():
+    params = stack[-1]
+    def func(v):
+        return str(v)
+    print(''.join(map(func, params)))
+
+
+inbuiltFunctions = {
+    "print": inbuilt_print
+}
+
+
 class Token:
     index = 0
 
@@ -40,8 +59,6 @@ class ENUM_TOKENS:
     COMMA = "COMMA"
 
 
-tokens = []
-opList = ['=', '+', '-', '*', '/']
 
 
 def error(msg, level=1):
@@ -264,17 +281,6 @@ def consumeArgsList(bp: BytecodeParser, argsList = None):
     return True
 
 
-stack = []
-def inbuilt_print():
-    params = stack[-1]
-    def func(v):
-        return str(v)
-    print(''.join(map(func, params)))
-
-inbuiltFunctions = {
-    "print": inbuilt_print
-}
-
 def consumeFunctionCall(bp: BytecodeParser):
     if bp.getTokenType() != ENUM_TOKENS.IDENTIFIER or tokens[bp.index + 1].token != ENUM_TOKENS.LPAREN:
         return False
@@ -292,12 +298,19 @@ def consumeFunctionCall(bp: BytecodeParser):
 
     return True
 
-
 def consumeVariableAssign(bp: BytecodeParser):
-    tok = bp.peekToken()
-    if tok.token != ENUM_TOKENS.OPERATOR or ''.join(tok.data) != "=":
+    varName = ''.join(bp.getTokenData())
+    varTokType = bp.getTokenType()
+    tokType = bp.nextToken().getTokenType()
+    tokData = bp.getTokenData()
+    if  varTokType != ENUM_TOKENS.IDENTIFIER or tokType != ENUM_TOKENS.OPERATOR or ''.join(tokData) != "=":
         return False
-    errNYI()
+
+    # TODO: Module scoped stack frame
+    print("Assigning a variable " + varName)
+    if consumeRValue(bp.nextToken()) == False:
+        error("Expected valid RValue!")
+    return True
 
 def consumeEmptyCodeLine(bp: BytecodeParser, isParenthesized: bool = False):
     if bp.hasNext() == False:
@@ -339,18 +352,19 @@ def consumeLValue(bp: BytecodeParser):
     # print("consuming LValue " + str(tokenType) + "!")
     # NOTE: These functions must return with index of the endline character(or right paren, if isParenthesized == True)
     # NOTE: These functions must return with index back if they're not supposed to parse.
-    if consumeFunctionCall(bp):
-        return True
-    if consumeVariableAssign(bp):
-        return True
-
     if not [ENUM_TOKENS.IDENTIFIER].__contains__(tokenType):
         bp.unexpectedTokenError()
+    if consumeFunctionCall(bp):
+        return True
+    elif consumeVariableAssign(bp):
+        return True
+
     return False
 
 
 # Returns whether it encountered some errors
 def consumeModule(bp: BytecodeParser, fileName):
+    stack.append([])
     bp.prevToken()
     while bp.hasNext():
         bp.nextToken()
@@ -369,10 +383,17 @@ def consumeModule(bp: BytecodeParser, fileName):
     # TODO: support generics
     # TODO: append expected Tokens
 
+
+def resetMem():
+    stack.clear()
+    tokens.clear()
+
+
 def parseFile(fileName):
     text = None
     with open(os.path.abspath(fileName)) as f:
         text = f.readlines()
+    resetMem()
     tokenize('\n'.join(text))
     if tokens[tokens.__len__() - 1].token != ENUM_TOKENS.ENDLINE:
         tokens.append(Token(ENUM_TOKENS.ENDLINE))
