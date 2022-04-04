@@ -7,7 +7,7 @@ import uuid
 
 lastEndlIndex = 0
 currentRow = 1
-filename: str = None
+file_name: str = None
 
 
 opList = ['=', '+', '-', '*', '/']
@@ -19,6 +19,7 @@ stack = []
 
 def inbuilt_print():
     params = stack[-1]
+
     def func(v):
         return str(v)
     print(''.join(map(func, params)))
@@ -59,8 +60,6 @@ class ENUM_TOKENS:
     COMMA = "COMMA"
 
 
-
-
 def error(msg, level=1):
     assert (level >= 1)
     frame = inspect.currentframe()
@@ -71,23 +70,23 @@ def error(msg, level=1):
     exit(-1)
 
 
-def errNYI():
+def err_NYI():
     error("Not yet implemented.", 2)
 
 
-def isWhitespace(text, index):
+def is_whitespace(text, index):
     if text[index] == ' ' or text[index] == '\n' or text[index] == '\t':
         return True
     else:
         return False
 
 
-def closeToken(openToken):
+def close_token(openToken):
     tokens.append(openToken)
     return None
 
 
-def openNewToken(char: str):
+def open_new_token(char: str):
     openToken = None
     if char == '\n':
         openToken = Token(ENUM_TOKENS.ENDLINE)
@@ -125,7 +124,7 @@ def tokenize(text, index=0, openToken=None):
     char = text[index]
     if openToken == None:
         Token.index = index
-        openToken = openNewToken(char)
+        openToken = open_new_token(char)
         if openToken == None:
             return tokenize(text, index + 1, None)
         else:
@@ -169,28 +168,28 @@ def tokenize(text, index=0, openToken=None):
     return tokenize(text, index + 1, openToken)
 
 
-def hasThisToken(index):
+def has_this_token(index):
     if index < len(tokens):
         return True
     else:
         return False
 
 
-def hasNextToken(index):
+def has_next_token(index):
     if index + 1 < len(tokens):
         return True
     else:
         return False
 
 
-def hasNextNTokens(index, n):
+def has_next_n_tokens(index, n):
     if index + n < len(tokens):
         return True
     else:
         return False
 
 
-def isValueToken(index):
+def is_value_token(index):
     if tokens[index].token == ENUM_TOKENS.STR_LITERAL or tokens[
             index].token == ENUM_TOKENS.NUM_LITERAL or tokens[
                 index].token == ENUM_TOKENS.IDENTIFIER:
@@ -208,44 +207,51 @@ BYTECODE_INSTRUCTIONS = {
 
 
 class BytecodeParser:
-    __slots__ = ('index', 'bytecode', 'identifiers')
+    __slots__ = ('index', 'bytecode')
 
     def __init__(self):
         self.index = 0
         self.bytecode = []
-        self.identifiers = []
 
-    def nextToken(self):
+    def next_token(self):
         self.index += 1
         return self
 
-    def prevToken(self):
+    def prev_token(self):
         self.index -= 1
         return self
 
     def peekToken(self, offset: int = 1):
         return tokens[self.index + offset]
 
-    def getTokenType(self):
+    def get_token_type(self):
         return tokens[self.index].token
 
-    def getTokenData(self):
+    def get_token_data(self):
         return ''.join(tokens[self.index].data)
 
-    def hasNext(self):
+    def has_next(self):
         if len(tokens) > self.index + 1:
             return True
         return False
 
-    def unexpectedTokenError(self):
+    def unexpected_token_error(self):
         # TODO: print line number
+        print(self.get_token_type())
+        token_type = self.get_token_type()
+        temp_row = str(tokens[self.index].row)
+        temp_col = str(tokens[self.index].col)
+        assert token_type
+        assert temp_row
+        assert temp_col
+        assert file_name
         error(
-            "Unexpected token " + str(self.getTokenType()) + " at " +
-            filename + ":" + str(tokens[self.index].row) + ":" +
-            str(tokens[self.index].col), 2)
+            "Unexpected token " + token_type + " at " +
+            file_name + ":" + temp_row + ":" +
+            temp_col, 2)
 
 
-def getPrecedingOperator(a, b):
+def get_preceding_operator(a, b):
     # TODO: test
     assert (a.token == ENUM_TOKENS.OPERATOR)
     assert (b.token == ENUM_TOKENS.OPERATOR)
@@ -258,118 +264,124 @@ def getPrecedingOperator(a, b):
         return adata
 
 
-def consumeNumLiteral(bp: BytecodeParser):
-    if bp.getTokenType() != ENUM_TOKENS.NUM_LITERAL:
+def consume_num_literal(bp: BytecodeParser):
+    if bp.get_token_type() != ENUM_TOKENS.NUM_LITERAL:
         return bp, None, False
-    data = bp.getTokenData()
-    return bp.nextToken(), data, True
+    data = bp.get_token_data()
+    return bp.next_token(), data, True
 
 
-def consumeArgsList(bp: BytecodeParser, argsList = None):
+def consume_args_list(bp: BytecodeParser, argsList=None):
     # NOTE: must return bp.index of the next ',' or of ')'
+    assert file_name
     if argsList == None:
         # this means this is the first argument
         argsList = []
-    if not [ENUM_TOKENS.LPAREN, ENUM_TOKENS.COMMA].__contains__(bp.getTokenType()):
-        if bp.getTokenType() == ENUM_TOKENS.RPAREN:
-            bp.nextToken()
+    if not [ENUM_TOKENS.LPAREN, ENUM_TOKENS.COMMA].__contains__(bp.get_token_type()):
+        if bp.get_token_type() == ENUM_TOKENS.RPAREN:
+            bp.next_token()
             return True
-        bp.unexpectedTokenError()
-    if consumeRValue(bp.nextToken()) == False:
+        bp.unexpected_token_error()
+    if consume_rvalue(bp.next_token()) == False:
         error("Expected RValue!")
-    consumeArgsList(bp)
+    consume_args_list(bp)
     return True
 
 
-def consumeFunctionCall(bp: BytecodeParser):
-    if bp.getTokenType() != ENUM_TOKENS.IDENTIFIER or tokens[bp.index + 1].token != ENUM_TOKENS.LPAREN:
+def consume_function_call(bp: BytecodeParser):
+    if bp.get_token_type() != ENUM_TOKENS.IDENTIFIER or tokens[bp.index + 1].token != ENUM_TOKENS.LPAREN:
         return False
-    functionName = ''.join(bp.getTokenData())
-    print("running function " + functionName)
+    function_name = ''.join(bp.get_token_data())
+    print("running function " + function_name)
     # TODO: Add bytecode instruction here
-    if functionName in inbuiltFunctions:
+    if function_name in inbuiltFunctions:
         stack.append([])
-        args = consumeArgsList(bp.nextToken())
-        inbuiltFunctions.get(functionName)()
+        args = consume_args_list(bp.next_token())
+        inbuiltFunctions.get(function_name)()
         stack.pop()
     else:
         error("This function doesn't exist yet!")
 
-
     return True
 
-def consumeVariableAssign(bp: BytecodeParser):
-    varName = ''.join(bp.getTokenData())
-    varTokType = bp.getTokenType()
-    tokType = bp.nextToken().getTokenType()
-    tokData = bp.getTokenData()
-    if  varTokType != ENUM_TOKENS.IDENTIFIER or tokType != ENUM_TOKENS.OPERATOR or ''.join(tokData) != "=":
+
+def consume_variable_assign(bp: BytecodeParser):
+    varName = ''.join(bp.get_token_data())
+    varTokType = bp.get_token_type()
+    tokType = bp.next_token().get_token_type()
+    tokData = bp.get_token_data()
+    if varTokType != ENUM_TOKENS.IDENTIFIER or tokType != ENUM_TOKENS.OPERATOR or ''.join(tokData) != "=":
         return False
 
     # TODO: Module scoped stack frame
     print("Assigning a variable " + varName)
-    if consumeRValue(bp.nextToken()) == False:
+    if consume_rvalue(bp.next_token()) == False:
         error("Expected valid RValue!")
     return True
 
+
 def consumeEmptyCodeLine(bp: BytecodeParser, isParenthesized: bool = False):
-    if bp.hasNext() == False:
+    if bp.has_next() == False:
         return False
-    if not isParenthesized and bp.getTokenType() == ENUM_TOKENS.ENDLINE:
-        bp.nextToken()
+    if not isParenthesized and bp.get_token_type() == ENUM_TOKENS.ENDLINE:
+        bp.next_token()
         return True
     return False
 
 
-def consumeRValue(bp: BytecodeParser, isParenthesized: bool = False, ):
-    tokenType = bp.getTokenType()
+def consume_rvalue(bp: BytecodeParser, isParenthesized: bool = False, ):
+    assert file_name
+    tokenType = bp.get_token_type()
     success = False
     if tokenType == ENUM_TOKENS.LPAREN:
-        if not consumeRValue(bp.nextToken(), True):
-            bp.unexpectedTokenError()
+        if not consume_rvalue(bp.next_token(), True):
+            bp.unexpected_token_error()
     if tokenType == ENUM_TOKENS.RPAREN:
         if not isParenthesized:
-            bp.unexpectedTokenError()
-        bp.nextToken()
+            bp.unexpected_token_error()
+        bp.next_token()
         return True
     # if consumeVariableAssign(bp):
     #     return True
-    if consumeFunctionCall(bp) == True:
+    if consume_function_call(bp) == True:
         return True
-    if bp.getTokenType() == ENUM_TOKENS.NUM_LITERAL:
+    if bp.get_token_type() == ENUM_TOKENS.NUM_LITERAL:
         # print("Encountered number literal in rvlaue, great job!")
-        stack[-1].append(bp.getTokenData())
-        bp.nextToken()
+        stack[-1].append(bp.get_token_data())
+        bp.next_token()
         return True
     # TODO: String literals
     # TODO: Consider replacing all literals with an identifier
     return False
 
-def consumeLValue(bp: BytecodeParser):
-    tokenType = bp.getTokenType()
-    if not bp.hasNext():
+
+def consume_lvalue(bp: BytecodeParser):
+    assert file_name
+    tokenType = bp.get_token_type()
+    if not bp.has_next():
         return True
     # print("consuming LValue " + str(tokenType) + "!")
     # NOTE: These functions must return with index of the endline character(or right paren, if isParenthesized == True)
     # NOTE: These functions must return with index back if they're not supposed to parse.
     if not [ENUM_TOKENS.IDENTIFIER].__contains__(tokenType):
-        bp.unexpectedTokenError()
-    if consumeFunctionCall(bp):
+        bp.unexpected_token_error()
+    if consume_function_call(bp):
         return True
-    elif consumeVariableAssign(bp):
+    elif consume_variable_assign(bp):
         return True
 
     return False
 
 
 # Returns whether it encountered some errors
-def consumeModule(bp: BytecodeParser, fileName):
+def consume_module(bp: BytecodeParser):
+    assert file_name
     stack.append([])
-    bp.prevToken()
-    while bp.hasNext():
-        bp.nextToken()
-        if not consumeLValue(bp):
-            error("File " + fileName + "has not parsed successfully!")
+    bp.prev_token()
+    while bp.has_next():
+        bp.next_token()
+        if not consume_lvalue(bp):
+            error("File " + file_name + "has not parsed successfully!")
     # TODO: better error logging - show expected tokens
     # TODO: generate variable assignments
     # TODO: support expressions
@@ -384,39 +396,42 @@ def consumeModule(bp: BytecodeParser, fileName):
     # TODO: append expected Tokens
 
 
-def resetMem():
+def reset_mem():
     stack.clear()
     tokens.clear()
 
 
-def parseFile(fileName):
+def parse_file(f_path):
+    file_name = str(f_path)
     text = None
-    with open(os.path.abspath(fileName)) as f:
+    with open(os.path.abspath(f_path)) as f:
         text = f.readlines()
-    resetMem()
+    reset_mem()
     tokenize('\n'.join(text))
     if tokens[tokens.__len__() - 1].token != ENUM_TOKENS.ENDLINE:
         tokens.append(Token(ENUM_TOKENS.ENDLINE))
     for _, v in enumerate(tokens):
         print(v, v.data)
     bp: BytecodeParser = BytecodeParser()
-    consumeModule(bp, fileName)
-    print("Successfully parsed " + fileName, flush=True)
+    assert file_name
+    consume_module(bp)
+    print("Successfully parsed " + file_name, flush=True)
 
 
-def parseFilesAndDirectories(args, prefix = ""):
+def parse_files_and_directories(args, prefix=""):
     for arg in args:
-        fileOrDirName = prefix + arg
-        if os.path.exists(fileOrDirName) == False:
-            print(fileOrDirName)
+        file_or_dir_name = prefix + arg
+        if os.path.exists(file_or_dir_name) == False:
+            print(file_or_dir_name)
             error("Invalid file path")
-        if os.path.isdir(fileOrDirName):
-            fileOrDirName += "/"
-            print("Parsing a directory " + fileOrDirName)
-            parseFilesAndDirectories(os.listdir(fileOrDirName), fileOrDirName)
+        if os.path.isdir(file_or_dir_name):
+            file_or_dir_name += "/"
+            print("Parsing a directory " + file_or_dir_name)
+            parse_files_and_directories(os.listdir(
+                file_or_dir_name), file_or_dir_name)
         else:
             print("Trying to parse a file " + arg)
-            parseFile(fileOrDirName)
+            parse_file(file_or_dir_name)
 
 
 def main():
@@ -424,9 +439,8 @@ def main():
     if len(args) == 0:
         print("Usage: python temp.py <filename>")
         return -1
-    parseFilesAndDirectories(args)
+    parse_files_and_directories(args)
     print()
-
 
 
 if __name__ == "__main__":
